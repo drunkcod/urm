@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"module": "nodenext",
+		"target": "es2024",
+		"lib": ["es2024"],
+		"types": ["node"],
+		"moduleResolution": "nodenext",
+		"isolatedModules": true,
+
+		"strict": true,
+		"declaration": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+
+		"sourceMap": true,
+		"outDir": "lib",
+		"rootDir": "src"
+	},
+	"include": ["src"],
+	"exclude": ["lib", "src/test.ts", "**/*.spec.ts"],
+}

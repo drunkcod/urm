@@ -1,0 +1,33 @@
+{
+  "name": "urm",
+  "version": "0.0.1",
+  "description": "µResourceMesh - just enough of a resolver to be useful.",
+  "license": "MIT",
+  "author": "Tobbe Gyllebring <tobbe@drunkcod.com>",
+  "type": "module",
+  "files": ["lib"],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rimraf lib",
+    "compile": "tsc",
+    "build": "npm-run-all clean compile --silent",
+    "test": "npm-run-all test:typecheck test:jest",
+    "test:typecheck": "tsc --project tsconfig.test.json",
+    "test:jest": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js"
+  },
+  "devDependencies": {
+    "@swc/jest": "^0.2.39",
+    "@types/node": "^25.7.0",
+    "jest": "^30.4.2",
+    "npm-run-all2": "^8.0.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3"
+  }
+}
