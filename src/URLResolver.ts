@@ -37,10 +37,13 @@ const EmptyHeaders = () => EmptyPromise;
 
 export class URLResolverBuilder<Context = void> {
 	readonly #hostMap: Record<string, Readonly<HostRecord<Context>> | undefined> = Object.create(null);
-	private constructor() {}
+	readonly #fetch: typeof fetch;
+	private constructor(fetchImpl: typeof fetch) {
+		this.#fetch = fetchImpl;
+	}
 
-	static create<Context = void>() {
-		return new URLResolverBuilder<Context>();
+	static create<Context = void>(fetchImpl: typeof fetch = globalThis.fetch) {
+		return new URLResolverBuilder<Context>(fetchImpl);
 	}
 
 	add(host: string, url: URL, headers?: HeaderResolver<Context>): this {
@@ -56,6 +59,7 @@ export class URLResolverBuilder<Context = void> {
 
 	build(): URLResolver<Context> {
 		const knownHosts = bareFrozen(this.#hostMap);
+		const doFetch = this.#fetch;
 		const resolve = (url: string | URL) => {
 			const u = new URL(url);
 			const h = knownHosts[u.host];
@@ -73,10 +77,10 @@ export class URLResolverBuilder<Context = void> {
 				const resolvedHeaders = await headers(context);
 				// Empty is a shared singleton, so this check skips building a Headers
 				// instance when there's provably nothing to merge into it.
-				if (resolvedHeaders === Empty && !callerHeaders) return fetch(resolvedUrl, rest);
+				if (resolvedHeaders === Empty && !callerHeaders) return doFetch(resolvedUrl, rest);
 				const merged = new Headers(resolvedHeaders);
 				if (callerHeaders) for (const [name, value] of new Headers(callerHeaders)) merged.set(name, value);
-				return fetch(resolvedUrl, { ...rest, headers: merged });
+				return doFetch(resolvedUrl, { ...rest, headers: merged });
 			}
 		}));
 	}

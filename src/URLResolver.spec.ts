@@ -1,4 +1,4 @@
-import { describe, it, expect, jest, afterEach } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
 import { URLResolverBuilder, staticHeaders } from './URLResolver.js';
 
 describe('URLResolverBuilder', () => {
@@ -97,13 +97,9 @@ describe('URLResolver', () => {
 });
 
 describe('URLResolver.fetch', () => {
-	afterEach(() => {
-		jest.restoreAllMocks();
-	});
-
 	it('fetches the resolved URL with resolved headers merged under init headers', async () => {
-		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
-		const resolver = URLResolverBuilder.create()
+		const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create(fetchMock)
 			.add('example.com', new URL('https://internal.example.com'), staticHeaders({
 				Authorization: 'Bearer token',
 				'X-From': 'resolver',
@@ -122,8 +118,8 @@ describe('URLResolver.fetch', () => {
 	});
 
 	it('caller headers override resolver headers case-insensitively', async () => {
-		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
-		const resolver = URLResolverBuilder.create()
+		const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create(fetchMock)
 			.add('example.com', new URL('https://internal.example.com'), staticHeaders({
 				Authorization: 'Bearer resolver-token',
 			}))
@@ -137,8 +133,8 @@ describe('URLResolver.fetch', () => {
 	});
 
 	it('fetches unknown hosts unchanged with no extra headers, skipping Headers construction', async () => {
-		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
-		const resolver = URLResolverBuilder.create().build();
+		const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create(fetchMock).build();
 
 		await resolver.fetch('http://other.com/path');
 
@@ -150,8 +146,8 @@ describe('URLResolver.fetch', () => {
 	});
 
 	it('skips building Headers for a matched host with no registered headers and no caller headers', async () => {
-		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
-		const resolver = URLResolverBuilder.create()
+		const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create(fetchMock)
 			.add('example.com', new URL('https://internal.example.com'))
 			.build();
 
@@ -164,8 +160,8 @@ describe('URLResolver.fetch', () => {
 
 	it('resolves different headers per call from the caller-supplied context', async () => {
 		type ClientContext = { clientId: string };
-		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
-		const resolver = URLResolverBuilder.create<ClientContext>()
+		const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create<ClientContext>(fetchMock)
 			.add('example.com', new URL('https://internal.example.com'), async (ctx) => ({
 				Authorization: `Bearer ${ctx?.clientId}`,
 			}))
