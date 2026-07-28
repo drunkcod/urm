@@ -1,9 +1,19 @@
 {
   "name": "@drunkcod/urm",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "µResourceMesh - just enough of a resolver to be useful.",
+  "keywords": ["url", "resolver", "fetch", "proxy", "rewrite"],
   "license": "MIT",
   "author": "Tobbe Gyllebring <tobbe@drunkcod.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drunkcod/urm.git"
+  },
+  "homepage": "https://github.com/drunkcod/urm#readme",
+  "bugs": "https://github.com/drunkcod/urm/issues",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "files": ["lib"],
   "main": "lib/index.js",

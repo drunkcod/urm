@@ -1,5 +1,5 @@
-import { describe, it, expect } from '@jest/globals';
-import { URLResolverBuilder } from './URLResolver.js';
+import { describe, it, expect, jest, afterEach } from '@jest/globals';
+import { URLResolverBuilder, staticHeaders } from './URLResolver.js';
 
 describe('URLResolverBuilder', () => {
 	it('build returns a resolver with no hosts by default', () => {
@@ -74,5 +74,62 @@ describe('URLResolver', () => {
 			.build();
 		const { url } = resolver('http://example.com/path');
 		expect(url.host).toBe('internal.example.com');
+	});
+
+	it('passes through unchanged when the incoming port does not match a registered host', () => {
+		const resolver = URLResolverBuilder.create()
+			.add('example.com', new URL('https://internal.example.com'))
+			.build();
+		const { url } = resolver('http://example.com:8080/path');
+		expect(url.host).toBe('example.com:8080');
+		expect(url.protocol).toBe('http:');
+	});
+
+	it('re-registering a host overwrites the previous mapping', () => {
+		const resolver = URLResolverBuilder.create()
+			.add('example.com', new URL('https://first.example.com'))
+			.add('example.com', new URL('https://second.example.com'))
+			.build();
+		const { url } = resolver('http://example.com/path');
+		expect(url.host).toBe('second.example.com');
+		expect(resolver.hosts).toEqual(['example.com']);
+	});
+});
+
+describe('URLResolver.fetch', () => {
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
+
+	it('fetches the resolved URL with resolved headers merged under init headers', async () => {
+		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create()
+			.add('example.com', new URL('https://internal.example.com'), staticHeaders({
+				Authorization: 'Bearer token',
+				'X-From': 'resolver',
+			}))
+			.build();
+
+		await resolver.fetch('http://example.com/path', { headers: { 'X-From': 'caller' } });
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+		expect(String(calledUrl)).toBe('https://internal.example.com/path');
+		expect(calledInit?.headers).toEqual({
+			Authorization: 'Bearer token',
+			'X-From': 'caller',
+		});
+	});
+
+	it('fetches unknown hosts unchanged with no extra headers', async () => {
+		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create().build();
+
+		await resolver.fetch('http://other.com/path');
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+		expect(String(calledUrl)).toBe('http://other.com/path');
+		expect(calledInit?.headers).toEqual({});
 	});
 });
