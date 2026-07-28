@@ -1,20 +1,24 @@
 
 export type ResolvedHeaders = Readonly<Record<string, string>>;
 
-export type ResolvedURL = {
+export type HeaderResolver<Context> = (args?: Context) => Promise<ResolvedHeaders>;
+
+export type ResolvedURL<Context> = {
 	url: URL;
-	headers: HeaderResolver;
+	headers: HeaderResolver<Context>;
 };
 
-export interface URLResolver {
-	(url: string | URL): ResolvedURL;
-	get hosts(): Readonly<string[]>;
-	get fetch(): (url: string | URL, init?: RequestInit) => Promise<Response>;
+interface ContextRequestInit<Context> extends RequestInit {
+	context?: Context;
 }
 
-export type HeaderResolver = () => Promise<ResolvedHeaders>;
+export interface URLResolver<Context = void> {
+	(url: string | URL): ResolvedURL<Context>;
+	get hosts(): Readonly<string[]>;
+	get fetch(): (url: string | URL, init?: ContextRequestInit<Context>) => Promise<Response>;
+}
 
-type HostRecord = { protocol: string; host: string; headers: HeaderResolver };
+type HostRecord<Context> = { protocol: string; host: string; headers: HeaderResolver<Context> };
 
 const bareFrozen = <T>(x: T): Readonly<T> =>
 	Object.freeze({
@@ -29,15 +33,15 @@ export const staticHeaders = (x: Record<string, string>) => {
 
 const EmptyHeaders = staticHeaders({});
 
-export class URLResolverBuilder {
-	readonly #hostMap: Record<string, Readonly<HostRecord> | undefined> = Object.create(null);
+export class URLResolverBuilder<Context = void> {
+	readonly #hostMap: Record<string, Readonly<HostRecord<Context>> | undefined> = Object.create(null);
 	private constructor() {}
 
-	static create() {
-		return new URLResolverBuilder();
+	static create<Context = void>() {
+		return new URLResolverBuilder<Context>();
 	}
 
-	add(host: string, url: URL, headers?: HeaderResolver): this {
+	add(host: string, url: URL, headers?: HeaderResolver<Context>): this {
 		const { protocol, host: destination } = url;
 		if (url.pathname !== '/' || url.search || url.hash) throw new Error('Target must be host only.');
 		this.#hostMap[host.toLowerCase()] = Object.freeze({
@@ -48,7 +52,7 @@ export class URLResolverBuilder {
 		return this;
 	}
 
-	build(): URLResolver {
+	build(): URLResolver<Context> {
 		const knownHosts = bareFrozen(this.#hostMap);
 		const resolve = (url: string | URL) => {
 			const u = new URL(url);
@@ -61,11 +65,11 @@ export class URLResolverBuilder {
 		};
 		return Object.freeze(Object.assign(resolve, {
 			hosts: Object.freeze(Object.keys(knownHosts)),
-			fetch: async (url: string | URL, init?: RequestInit) => {
+			fetch: async (url: string | URL, init?: ContextRequestInit<Context>) => {
 				const { url: resolvedUrl, headers } = resolve(url);
 				return fetch(resolvedUrl, {
 					...init,
-					headers: { ...await headers(), ...init?.headers },
+					headers: { ...await headers(init?.context), ...init?.headers },
 				})
 			}
 		}));

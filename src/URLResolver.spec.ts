@@ -132,4 +132,21 @@ describe('URLResolver.fetch', () => {
 		expect(String(calledUrl)).toBe('http://other.com/path');
 		expect(calledInit?.headers).toEqual({});
 	});
+
+	it('resolves different headers per call from the caller-supplied context', async () => {
+		type ClientContext = { clientId: string };
+		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create<ClientContext>()
+			.add('example.com', new URL('https://internal.example.com'), async (ctx) => ({
+				Authorization: `Bearer ${ctx?.clientId}`,
+			}))
+			.build();
+
+		await resolver.fetch('http://example.com/path', { context: { clientId: 'acme' } });
+		await resolver.fetch('http://example.com/path', { context: { clientId: 'globex' } });
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ Authorization: 'Bearer acme' });
+		expect(fetchMock.mock.calls[1][1]?.headers).toEqual({ Authorization: 'Bearer globex' });
+	});
 });
