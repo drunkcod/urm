@@ -115,13 +115,28 @@ describe('URLResolver.fetch', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		const [calledUrl, calledInit] = fetchMock.mock.calls[0];
 		expect(String(calledUrl)).toBe('https://internal.example.com/path');
-		expect(calledInit?.headers).toEqual({
-			Authorization: 'Bearer token',
-			'X-From': 'caller',
+		expect(Object.fromEntries(calledInit?.headers as Headers)).toEqual({
+			authorization: 'Bearer token',
+			'x-from': 'caller',
 		});
 	});
 
-	it('fetches unknown hosts unchanged with no extra headers', async () => {
+	it('caller headers override resolver headers case-insensitively', async () => {
+		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create()
+			.add('example.com', new URL('https://internal.example.com'), staticHeaders({
+				Authorization: 'Bearer resolver-token',
+			}))
+			.build();
+
+		await resolver.fetch('http://example.com/path', { headers: { authorization: 'Bearer caller-token' } });
+
+		const [, calledInit] = fetchMock.mock.calls[0];
+		const merged = calledInit?.headers as Headers;
+		expect([...merged]).toEqual([['authorization', 'Bearer caller-token']]);
+	});
+
+	it('fetches unknown hosts unchanged with no extra headers, skipping Headers construction', async () => {
 		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
 		const resolver = URLResolverBuilder.create().build();
 
@@ -130,7 +145,21 @@ describe('URLResolver.fetch', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		const [calledUrl, calledInit] = fetchMock.mock.calls[0];
 		expect(String(calledUrl)).toBe('http://other.com/path');
-		expect(calledInit?.headers).toEqual({});
+		expect(calledInit).toEqual({});
+		expect(calledInit?.headers).toBeUndefined();
+	});
+
+	it('skips building Headers for a matched host with no registered headers and no caller headers', async () => {
+		const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create()
+			.add('example.com', new URL('https://internal.example.com'))
+			.build();
+
+		await resolver.fetch('http://example.com/path', { method: 'POST' });
+
+		const [, calledInit] = fetchMock.mock.calls[0];
+		expect(calledInit).toEqual({ method: 'POST' });
+		expect(calledInit?.headers).toBeUndefined();
 	});
 
 	it('resolves different headers per call from the caller-supplied context', async () => {
@@ -146,7 +175,7 @@ describe('URLResolver.fetch', () => {
 		await resolver.fetch('http://example.com/path', { context: { clientId: 'globex' } });
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ Authorization: 'Bearer acme' });
-		expect(fetchMock.mock.calls[1][1]?.headers).toEqual({ Authorization: 'Bearer globex' });
+		expect(Object.fromEntries(fetchMock.mock.calls[0][1]?.headers as Headers)).toEqual({ authorization: 'Bearer acme' });
+		expect(Object.fromEntries(fetchMock.mock.calls[1][1]?.headers as Headers)).toEqual({ authorization: 'Bearer globex' });
 	});
 });

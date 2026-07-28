@@ -31,7 +31,9 @@ export const staticHeaders = (x: Record<string, string>) => {
 	return () => headers;
 }
 
-const EmptyHeaders = staticHeaders({});
+const Empty = bareFrozen({});
+const EmptyPromise = Promise.resolve(Empty);
+const EmptyHeaders = () => EmptyPromise;
 
 export class URLResolverBuilder<Context = void> {
 	readonly #hostMap: Record<string, Readonly<HostRecord<Context>> | undefined> = Object.create(null);
@@ -67,10 +69,14 @@ export class URLResolverBuilder<Context = void> {
 			hosts: Object.freeze(Object.keys(knownHosts)),
 			fetch: async (url: string | URL, init?: ContextRequestInit<Context>) => {
 				const { url: resolvedUrl, headers } = resolve(url);
-				return fetch(resolvedUrl, {
-					...init,
-					headers: { ...await headers(init?.context), ...init?.headers },
-				})
+				const { context, headers: callerHeaders, ...rest } = init ?? {};
+				const resolvedHeaders = await headers(context);
+				// Empty is a shared singleton, so this check skips building a Headers
+				// instance when there's provably nothing to merge into it.
+				if (resolvedHeaders === Empty && !callerHeaders) return fetch(resolvedUrl, rest);
+				const merged = new Headers(resolvedHeaders);
+				if (callerHeaders) for (const [name, value] of new Headers(callerHeaders)) merged.set(name, value);
+				return fetch(resolvedUrl, { ...rest, headers: merged });
 			}
 		}));
 	}
