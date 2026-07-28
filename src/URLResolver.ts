@@ -9,6 +9,7 @@ export type ResolvedURL = {
 export interface URLResolver {
 	(url: string | URL): ResolvedURL;
 	get hosts(): Readonly<string[]>;
+	get fetch(): (url: string | URL, init?: RequestInit) => Promise<Response>;
 }
 
 export type HeaderResolver = () => Promise<ResolvedHeaders>;
@@ -21,8 +22,12 @@ const bareFrozen = <T>(x: T): Readonly<T> =>
 		...x,
 	});
 
-const EMPTY_HEADERS = Promise.resolve(bareFrozen({} as Record<string, string>));
-const EmptyHeaders = () => EMPTY_HEADERS;
+export const staticHeaders = (x: Record<string, string>) => {
+	const headers = Promise.resolve(bareFrozen(x));
+	return () => headers;
+}
+
+const EmptyHeaders = staticHeaders({});
 
 export class URLResolverBuilder {
 	readonly #hostMap: Record<string, Readonly<HostRecord> | undefined> = Object.create(null);
@@ -54,8 +59,15 @@ export class URLResolverBuilder {
 			}
 			return { url: u, headers: h?.headers ?? EmptyHeaders };
 		};
-		return Object.assign(resolve, {
+		return Object.freeze(Object.assign(resolve, {
 			hosts: Object.freeze(Object.keys(knownHosts)),
-		});
+			fetch: async (url: string | URL, init?: RequestInit) => {
+				const { url: resolvedUrl, headers } = resolve(url);
+				return fetch(resolvedUrl, {
+					...init,
+					headers: { ...await headers(), ...init?.headers },
+				})
+			}
+		}));
 	}
 }

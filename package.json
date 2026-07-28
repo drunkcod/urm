@@ -1,5 +1,5 @@
 {
-  "name": "urm",
+  "name": "@drunkcod/urm",
   "version": "0.0.1",
   "description": "µResourceMesh - just enough of a resolver to be useful.",
   "license": "MIT",
