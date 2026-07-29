@@ -175,3 +175,53 @@ describe('URLResolver.fetch', () => {
 		expect(Object.fromEntries(fetchMock.mock.calls[1][1]?.headers as Headers)).toEqual({ authorization: 'Bearer globex' });
 	});
 });
+
+describe('URLResolver.bind', () => {
+	type ClientContext = { clientId: string };
+
+	it('fetch no longer needs a context, using the bound one instead', async () => {
+		const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create<ClientContext>(fetchMock)
+			.add('example.com', new URL('https://internal.example.com'), async (ctx) => ({
+				Authorization: `Bearer ${ctx?.clientId}`,
+			}))
+			.build();
+
+		const bound = resolver.bind({ clientId: 'acme' });
+		await bound.fetch('http://example.com/path');
+
+		expect(Object.fromEntries(fetchMock.mock.calls[0][1]?.headers as Headers)).toEqual({
+			authorization: 'Bearer acme',
+		});
+	});
+
+	it('the callable resolver also uses the bound context, with no argument to headers()', async () => {
+		type ClientContext = { clientId: string };
+		const resolver = URLResolverBuilder.create<ClientContext>()
+			.add('example.com', new URL('https://internal.example.com'), async (ctx) => ({
+				Authorization: `Bearer ${ctx?.clientId}`,
+			}))
+			.build();
+
+		const bound = resolver.bind({ clientId: 'globex' });
+		const { headers } = bound('http://example.com/path');
+
+		expect(await headers()).toEqual({ Authorization: 'Bearer globex' });
+	});
+
+	it('preserves hosts and the Empty-headers fast path across bind', async () => {
+		const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+		const resolver = URLResolverBuilder.create<ClientContext>(fetchMock)
+			.add('example.com', new URL('https://internal.example.com'))
+			.build();
+
+		const bound = resolver.bind({ clientId: 'acme' });
+		expect(bound.hosts).toEqual(['example.com']);
+
+		await bound.fetch('http://example.com/path');
+
+		const [, calledInit] = fetchMock.mock.calls[0];
+		expect(calledInit).toEqual({});
+		expect(calledInit?.headers).toBeUndefined();
+	});
+});

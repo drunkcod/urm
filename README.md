@@ -51,6 +51,15 @@ const perClient = URLResolverBuilder.create<ClientContext>()
 await perClient.fetch('https://api.example.com/orders', { context: { clientId: 'acme' } });
 ```
 
+If a given call site always acts on behalf of one client, `.bind()` fixes the
+context once and hands back a plain `URLResolver<void>` — no need to pass
+`context` on every call:
+
+```ts
+const acme = perClient.bind({ clientId: 'acme' });
+await acme.fetch('https://api.example.com/orders'); // Authorization resolved for 'acme'
+```
+
 ## API
 
 ### `URLResolverBuilder.create<Context = void>(fetchImpl = globalThis.fetch)`
@@ -87,6 +96,9 @@ Returns a frozen `URLResolver`:
   under any headers passed in `init.headers` (caller wins on conflicts,
   matched case-insensitively), and calls the configured `fetch`. Pass
   `init.context` to thread a value through to the registered `HeaderResolver`s.
+- `resolver.bind(context)` — returns a `URLResolver<void>` with `context`
+  fixed for every header lookup, so neither the callable resolver nor
+  `.fetch()` need one anymore.
 
 ### `staticHeaders(headers)`
 
